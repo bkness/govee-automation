@@ -43,4 +43,14 @@ async def control_light(device_id: str, model: str, command: dict):
                 "cmd": command
             }
         )
-        return res.json() if res.content else {"code": res.status_code}
+        try:
+            return res.json()
+        except Exception:
+            # Log for debugging
+            print("Non-JSON response from Govee:", res.status_code, res.text)
+            return {
+                "code": res.status_code,
+                "content": res.text,
+                "error": "Non-JSON respons from Govee"
+            }
+        # return res.json() if res.content else {"code": res.status_code}
