@@ -64,7 +64,12 @@ async def send_cloud_command(device_id: str, model: str, command: dict):
         try:
             return res.json()
         except Exception:
-            return {"code": res.status_code, "error": "Non-JSON response from Govee"}
+            print("Non-JSON response from Govee:", res.status_code, res.text)
+            return {
+                "code": res.status_code,
+                "content": res.text,
+                "error": "Non-JSON response from Govee"
+            }
           
 @app.get('/')
 def root():
@@ -94,11 +99,3 @@ async def control_light(device_id: str, model: str, command: dict):
     return await send_cloud_command(device_id, model, command)
 
         
-
-     
-
-
-
-
-
-
