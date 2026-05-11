@@ -37,9 +37,9 @@ export default function Page() {
           A clean shell for your Govee control panel.
         </h1>
         <p style={{ margin: 0, maxWidth: 700, fontSize: 18, lineHeight: 1.6 }}>
-          This Next app is intentionally thin right now. It gives you a stable
+          This Next app is intentionally thin right now. It gives me a stable
           starting point to wire device lists, room views, and command forms
-          into the FastAPI service when you have time.
+          into the FastAPI service when I have time.
         </p>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <Link

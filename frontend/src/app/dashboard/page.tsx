@@ -1,3 +1,7 @@
+"use client";
+
+import { useState, useEffect } from "react";
+
 const placeholderLights = [
   {
     name: "Living Room Lamp",
@@ -11,7 +15,32 @@ const placeholderLights = [
   },
 ];
 
-export default function Page() {
+export default function GoveeHud() {
+  const [state, setState] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function goveeData() {
+      setLoading(true);
+      try {
+        const res = await fetch("http://localhost:8000/lights", {
+          headers: {
+            "x-api-key": process.env.NEXT_PUBLIC_GOVEE_SERVER_KEY ?? "",
+          },
+        });
+        const json = await res.json();
+        console.log(json);
+        setState(json);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    goveeData();
+  }, []);
+
   return (
     <main style={{ display: "grid", gap: 16 }}>
       <p style={{ margin: 0, maxWidth: 760, lineHeight: 1.6 }}>
