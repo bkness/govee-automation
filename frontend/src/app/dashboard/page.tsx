@@ -31,6 +31,34 @@ interface Scene {
   apply: () => { cmds: object[]; state: Partial<DeviceState> };
 }
 
+// ─── State persistence ────────────────────────────────────────────────────────
+
+const STORE_KEY = "govee-hud-states";
+
+function loadStored(): Record<string, Partial<DeviceState>> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}"); }
+  catch { return {}; }
+}
+
+function persistDevice(deviceId: string, state: DeviceState) {
+  if (typeof window === "undefined") return;
+  try {
+    const all = loadStored();
+    all[deviceId] = state;
+    localStorage.setItem(STORE_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+function persistScene(devices: GoveeDevice[], partial: Partial<DeviceState>) {
+  if (typeof window === "undefined") return;
+  try {
+    const all = loadStored();
+    for (const d of devices) all[d.device] = { ...(all[d.device] ?? {}), ...partial };
+    localStorage.setItem(STORE_KEY, JSON.stringify(all));
+  } catch {}
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const API = "http://localhost:8000";
@@ -210,22 +238,33 @@ function Toggle({ on, disabled, onChange }: { on: boolean; disabled?: boolean; o
 // ─── Device Card ──────────────────────────────────────────────────────────────
 
 function DeviceCard({ device }: { device: GoveeDevice }) {
-  const [state, setState] = useState<DeviceState>({
-    on: false,
-    brightness: 100,
-    color: { r: 255, g: 255, b: 255 },
-    colorTem: device.properties.colorTem?.range.min ?? 2700,
-    mode: "white",
+  const [state, setState] = useState<DeviceState>(() => {
+    const stored = loadStored()[device.device];
+    return {
+      on: false,
+      brightness: 100,
+      color: { r: 255, g: 255, b: 255 },
+      colorTem: device.properties.colorTem?.range.min ?? 2700,
+      mode: "white",
+      ...stored,
+    };
   });
   const [pending, setPending] = useState(false);
   const brightnessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const colorTemTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const colorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const supports = useCallback((cmd: string) => device.supportCmds.includes(cmd), [device]);
 
   const send = useCallback(
     async (cmd: object, optimistic?: Partial<DeviceState>) => {
-      if (optimistic) setState((s) => ({ ...s, ...optimistic }));
+      if (optimistic) {
+        setState((s) => {
+          const next = { ...s, ...optimistic };
+          persistDevice(device.device, next);
+          return next;
+        });
+      }
       setPending(true);
       try { await sendCommand(device.device, device.model, cmd); }
       finally { setPending(false); }
@@ -428,8 +467,13 @@ function DeviceCard({ device }: { device: GoveeDevice }) {
               disabled={!state.on || pending}
               onChange={(e) => {
                 const rgb = hexToRgb(e.target.value);
-                setState((s) => ({ ...s, color: rgb }));
-                send({ name: "color", value: rgb });
+                setState((s) => {
+                  const next = { ...s, color: rgb };
+                  persistDevice(device.device, next);
+                  return next;
+                });
+                if (colorTimer.current) clearTimeout(colorTimer.current);
+                colorTimer.current = setTimeout(() => send({ name: "color", value: rgb }), 500);
               }}
               style={{
                 width: 36,
@@ -546,13 +590,14 @@ function SceneBar({ devices }: { devices: GoveeDevice[] }) {
     if (firing) return;
     setFiring(true);
     setActive(scene.name);
-    const { cmds } = scene.apply();
+    const { cmds, state: sceneState } = scene.apply();
     try {
       await Promise.all(
         devices.filter((d) => d.controllable).map(async (d) => {
           for (const cmd of cmds) await sendCommand(d.device, d.model, cmd);
         })
       );
+      persistScene(devices, sceneState);
     } finally {
       setFiring(false);
     }
@@ -618,6 +663,7 @@ function MasterBar({ devices, onRefresh, refreshing }: { devices: GoveeDevice[];
           sendCommand(d.device, d.model, { name: "turn", value: "on" })
         )
       );
+      persistScene(devices, { on: true });
     } finally { setMasterPending(false); }
   }, [devices]);
 
@@ -629,6 +675,7 @@ function MasterBar({ devices, onRefresh, refreshing }: { devices: GoveeDevice[];
           sendCommand(d.device, d.model, { name: "turn", value: "off" })
         )
       );
+      persistScene(devices, { on: false });
     } finally { setMasterPending(false); }
   }, [devices]);
 
