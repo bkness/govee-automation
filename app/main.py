@@ -1,7 +1,9 @@
+import asyncio
+import time
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -19,20 +21,26 @@ from app.routers import lights
 async def lifespan(app: FastAPI):
     log.info("Starting Govee Automation API")
 
+    app.state.start_time = time.time()
+    app.state.device_count = 0
+
+    # Semaphore: max 1 concurrent Govee cloud write to respect rate limits
+    app.state.govee_sem = asyncio.Semaphore(1)
+
     app.state.http_client = httpx.AsyncClient(
         base_url="https://developer-api.govee.com/v1",
         headers={"Govee-API-Key": settings.govee_api_key},
         timeout=10.0,
     )
 
-    # ── Startup connectivity check ────────────────────────────────────────────
     try:
         res = await app.state.http_client.get("/devices")
         if res.is_error:
-            log.warning("Govee API reachable but returned status=%d on startup", res.status_code)
+            log.warning("Govee API returned status=%d on startup", res.status_code)
         else:
-            device_count = len(res.json().get("data", {}).get("devices", []))
-            log.info("Govee API reachable — %d device(s) registered", device_count)
+            devices = res.json().get("data", {}).get("devices", [])
+            app.state.device_count = len(devices)
+            log.info("Govee API reachable — %d device(s) registered", app.state.device_count)
     except httpx.ConnectError:
         log.error("Govee API unreachable at startup — check your network or API key")
     except httpx.TimeoutException:
@@ -52,7 +60,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
     allow_methods=["GET", "PUT"],
-    allow_headers=["x-api-key", "Content-Type"],
+    allow_headers=["x-api-key", "Content-Type", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
 
 # ── Exception handlers ────────────────────────────────────────────────────────
@@ -67,3 +76,13 @@ app.include_router(lights.router)
 @app.get("/")
 def root():
     return {"message": "Govee lights API is running!"}
+
+
+@app.get("/health")
+def health(request: Request):
+    uptime = time.time() - request.app.state.start_time
+    return {
+        "status": "ok",
+        "uptime_s": round(uptime, 1),
+        "devices": request.app.state.device_count,
+    }

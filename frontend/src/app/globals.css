@@ -1,0 +1,124 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --neon: #00ffb4;
+  --neon-dim: rgba(0, 255, 180, 0.12);
+  --neon-glow: rgba(0, 255, 180, 0.35);
+  --bg: #080c14;
+  --card: rgba(15, 25, 40, 0.85);
+  --border: rgba(255, 255, 255, 0.06);
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --dim: #334155;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0, 255, 180, 0.15); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 180, 0.3); }
+
+/* ── Range inputs ──────────────────────────────────────────────────────────── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  outline: none;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--neon);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--neon-glow);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 14px var(--neon-glow);
+}
+input[type="range"]:disabled::-webkit-slider-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  outline: none;
+}
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+
+/* ── Keyframes ─────────────────────────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--neon); }
+  50% { opacity: 0.4; box-shadow: 0 0 2px var(--neon); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to { background-position: 200% center; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 180, 0.15); }
+  50% { box-shadow: 0 0 40px rgba(0, 255, 180, 0.3); }
+}
+
+@keyframes scan-line {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(100vh); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ── Utility classes ───────────────────────────────────────────────────────── */
+.pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+.fade-up { animation: fade-up 0.4s ease both; }
+.spin { animation: spin 1s linear infinite; }
+.glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
