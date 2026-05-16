@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getCached, setCached, bust } from "../lib/api-cache";
 
 interface GoveeDevice {
   device: string;
@@ -97,26 +98,37 @@ export default function StatusPage() {
     setLogs((prev) => [{ ts: ts(), level, msg }, ...prev].slice(0, 40));
   }, []);
 
-  const check = useCallback(async () => {
+  const check = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh) bust("devices", "states");
     setApiStatus("checking");
     setLoading(true);
-    addLog("INFO", "Checking API health...");
+    addLog("INFO", forceRefresh ? "Force-refreshing API status..." : "Checking API health...");
 
     const start = Date.now();
     try {
-      const res = await fetch(`${API}/lights/`, { headers: HEADERS });
-      const elapsed = Date.now() - start;
+      // Status page always hits the API live (it's a diagnostic tool),
+      // but uses the cache on first auto-check to avoid extra calls on nav
+      let devs = forceRefresh ? null : getCached<GoveeDevice[]>("devices");
+      let elapsed = 0;
 
-      if (!res.ok) {
-        setApiStatus("degraded");
-        addLog("WARN", `API responded with status ${res.status} (${elapsed}ms)`);
-        setLoading(false);
-        return;
+      if (!devs) {
+        const res = await fetch(`${API}/lights/`, { headers: HEADERS });
+        elapsed = Date.now() - start;
+        if (!res.ok) {
+          setApiStatus("degraded");
+          addLog("WARN", `API responded with status ${res.status} (${elapsed}ms)`);
+          setLoading(false);
+          return;
+        }
+        const json = await res.json();
+        devs = json.data?.devices ?? [];
+        setCached("devices", devs);
+      } else {
+        elapsed = Date.now() - start;
+        addLog("INFO", "Using cached device list");
       }
 
-      const json = await res.json();
-      const devs: GoveeDevice[] = json.data?.devices ?? [];
-      setDevices(devs);
+      setDevices(devs!);
       setApiStatus("online");
       setLastChecked(ts());
 
@@ -127,11 +139,12 @@ export default function StatusPage() {
         addLog("INFO", `Server uptime: ${health.uptime_s}s`);
       } catch { /* health endpoint optional */ }
 
-      addLog("OK", `API online — ${devs.length} device(s) registered (${elapsed}ms)`);
-      const controllable = devs.filter((d) => d.controllable).length;
-      addLog("INFO", `${controllable}/${devs.length} devices controllable`);
+      const safeDevs = devs ?? [];
+      addLog("OK", `API online — ${safeDevs.length} device(s) registered (${elapsed}ms)`);
+      const controllable = safeDevs.filter((d) => d.controllable).length;
+      addLog("INFO", `${controllable}/${safeDevs.length} devices controllable`);
 
-      const models = [...new Set(devs.map((d) => d.model))];
+      const models = [...new Set(safeDevs.map((d) => d.model))];
       addLog("INFO", `Models: ${models.join(", ")}`);
     } catch (e) {
       const elapsed = Date.now() - start;
@@ -267,7 +280,7 @@ export default function StatusPage() {
             Device Inventory
           </h2>
           <button
-            onClick={check}
+            onClick={() => check(true)}
             disabled={loading}
             style={{
               padding: "6px 14px",

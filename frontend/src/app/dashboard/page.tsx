@@ -32,6 +32,7 @@ interface Scene {
 }
 
 import { loadStored, persistDevice, persistMany } from "../lib/device-store";
+import { getCached, setCached, bust } from "../lib/api-cache";
 
 type RealStates = Record<string, Partial<DeviceState>>;
 
@@ -759,31 +760,42 @@ export default function GoveeHud() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    if (isRefresh) {
+      bust("devices", "states");
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
-      const r = await fetch(`${API}/lights/`, { headers: HEADERS });
-      if (!r.ok) throw new Error(`API ${r.status}`);
-      const json = await r.json();
-      const devs: GoveeDevice[] = json.data?.devices ?? [];
-      setDevices(devs);
+      // Devices — use cache unless this is an explicit refresh
+      let devs = getCached<GoveeDevice[]>("devices");
+      if (!devs) {
+        const r = await fetch(`${API}/lights/`, { headers: HEADERS });
+        if (!r.ok) throw new Error(`API ${r.status}`);
+        devs = (await r.json()).data?.devices ?? [];
+        setCached("devices", devs);
+      }
+      setDevices(devs!);
       setLoading(false);
       setRefreshing(false);
 
-      // Fetch real hardware states in background — cards update when this resolves
-      fetchRealStates(HEADERS)
-        .then((states) => {
+      // States — cached too, fetch in background if stale
+      const cachedStates = getCached<RealStates>("states");
+      if (cachedStates) {
+        setRealStates(cachedStates);
+      } else {
+        fetchRealStates(HEADERS).then((states) => {
+          setCached("states", states);
           setRealStates(states);
-          // Seed localStorage so rooms page also benefits
           const all = loadStored();
           for (const [id, s] of Object.entries(states)) {
             all[id] = { ...(all[id] ?? {}), ...s };
           }
           try { localStorage.setItem("govee-hud-states", JSON.stringify(all)); } catch {}
-        })
-        .catch(() => {/* states are best-effort */});
+        }).catch(() => {});
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setLoading(false);

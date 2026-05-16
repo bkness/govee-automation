@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { roomIsOn, persistMany } from "../lib/device-store";
+import { getCached, setCached, bust } from "../lib/api-cache";
 
 interface GoveeDevice {
   device: string;
@@ -298,21 +299,35 @@ export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) bust("devices", "states");
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`${API}/lights/`, { headers: HEADERS });
-      if (!r.ok) throw new Error(`API ${r.status}`);
-      const j = await r.json();
-      setDevices(j.data?.devices ?? []);
+      let devs = getCached<GoveeDevice[]>("devices");
+      if (!devs) {
+        const r = await fetch(`${API}/lights/`, { headers: HEADERS });
+        if (!r.ok) throw new Error(`API ${r.status}`);
+        devs = (await r.json()).data?.devices ?? [];
+        setCached("devices", devs);
+      }
+      setDevices(devs!);
       setLoading(false);
 
-      // Fetch real states in background — RoomCard useEffect picks them up
-      fetch(`${API}/lights/states`, { headers: HEADERS })
-        .then((sr) => sr.ok ? sr.json() : null)
-        .then((sj) => { if (sj?.states) setRealStates(sj.states); })
-        .catch(() => {});
+      const cachedStates = getCached<Record<string, { on?: boolean }>>("states");
+      if (cachedStates) {
+        setRealStates(cachedStates);
+      } else {
+        fetch(`${API}/lights/states`, { headers: HEADERS })
+          .then((sr) => sr.ok ? sr.json() : null)
+          .then((sj) => {
+            if (sj?.states) {
+              setCached("states", sj.states);
+              setRealStates(sj.states);
+            }
+          })
+          .catch(() => {});
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
       setLoading(false);
@@ -352,7 +367,7 @@ export default function RoomsPage() {
           </h1>
         </div>
         <button
-          onClick={load}
+          onClick={() => { void load(true); }}
           disabled={loading}
           style={{
             padding: "8px 16px",
@@ -388,7 +403,7 @@ export default function RoomsPage() {
         >
           <span>✕ {error}</span>
           <button
-            onClick={load}
+            onClick={() => { void load(); }}
             style={{
               background: "none",
               border: "none",
