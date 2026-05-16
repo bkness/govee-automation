@@ -7,18 +7,47 @@ export default function Layout({ children }: { children: ReactNode }) {
       <body
         style={{
           margin: 0,
-          fontFamily: "Georgia, Times New Roman, serif",
-          background:
-            "radial-gradient(circle at top, #f7efe4 0%, #efe2cf 42%, #d5c2a6 100%)",
-          color: "#1f1408",
+          fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+          background: "#080c14",
+          color: "#e2e8f0",
           minHeight: "100vh",
         }}
       >
+        {/* Ambient background grid */}
         <div
           style={{
-            maxWidth: 1100,
+            position: "fixed",
+            inset: 0,
+            backgroundImage:
+              "linear-gradient(rgba(0,255,180,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,180,0.03) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
+        {/* Neon top glow */}
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "60vw",
+            height: 1,
+            background: "linear-gradient(90deg, transparent, #00ffb4, transparent)",
+            boxShadow: "0 0 80px 20px rgba(0,255,180,0.12)",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
+
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            maxWidth: 1200,
             margin: "0 auto",
-            padding: "24px 20px 48px",
+            padding: "24px 24px 64px",
           }}
         >
           <nav
@@ -27,26 +56,36 @@ export default function Layout({ children }: { children: ReactNode }) {
               justifyContent: "space-between",
               alignItems: "center",
               gap: 16,
-              marginBottom: 32,
+              marginBottom: 40,
+              paddingBottom: 20,
+              borderBottom: "1px solid rgba(0,255,180,0.12)",
             }}
           >
             <Link
               href="/"
               style={{
-                color: "inherit",
+                color: "#00ffb4",
                 textDecoration: "none",
-                fontSize: 24,
+                fontSize: 18,
                 fontWeight: 700,
-                letterSpacing: "0.04em",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                textShadow: "0 0 20px rgba(0,255,180,0.5)",
               }}
             >
-              Govee Automation
+              ⬡ Govee HUD
             </Link>
-            <div style={{ display: "flex", gap: 16, fontSize: 16 }}>
-              <Link href="/dashboard" style={{ color: "inherit" }}>
+            <div style={{ display: "flex", gap: 24, fontSize: 13, letterSpacing: "0.06em" }}>
+              <Link
+                href="/dashboard"
+                style={{ color: "#94a3b8", textDecoration: "none", textTransform: "uppercase" }}
+              >
                 Dashboard
               </Link>
-              <Link href="/blog" style={{ color: "inherit" }}>
+              <Link
+                href="/blog"
+                style={{ color: "#94a3b8", textDecoration: "none", textTransform: "uppercase" }}
+              >
                 Notes
               </Link>
             </div>
