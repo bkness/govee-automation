@@ -13,18 +13,28 @@ def _req_id(request: Request) -> str:
     return getattr(request.state, "req_id", "-")
 
 
-def _parse_props(props: list) -> dict:
-    """Normalize Govee property array → flat dict with on/brightness/colorTem/color."""
+def _parse_props(props) -> dict:
+    """Normalize Govee property array or dict → flat dict with on/brightness/colorTem/color/mode."""
     out: dict = {}
-    for prop in props:
+    items = [props] if isinstance(props, dict) else props
+    for prop in items:
+        if not isinstance(prop, dict):
+            continue
         if "powerSwitch" in prop:
             out["on"] = prop["powerSwitch"] == 1
+        if "powerState" in prop:
+            out["on"] = prop["powerState"] == "on"
         if "brightness" in prop:
             out["brightness"] = prop["brightness"]
         if "colorTem" in prop and prop["colorTem"] > 0:
             out["colorTem"] = prop["colorTem"]
         if "color" in prop and isinstance(prop["color"], dict):
             out["color"] = prop["color"]
+    # Govee returns colorTem=0 when in color mode, so infer mode from what's present
+    if "colorTem" in out:
+        out["mode"] = "white"
+    elif "color" in out:
+        out["mode"] = "color"
     return out
 
 

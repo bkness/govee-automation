@@ -156,13 +156,9 @@ function SceneCard({
     if (status === "firing") return;
     setStatus("firing");
     try {
-      await Promise.all(
-        devices
-          .filter((d) => d.controllable)
-          .map(async (d) => {
-            for (const cmd of scene.cmds) await sendCommand(d.device, d.model, cmd);
-          })
-      );
+      for (const d of devices.filter((d) => d.controllable)) {
+        for (const cmd of scene.cmds) await sendCommand(d.device, d.model, cmd);
+      }
       setStatus("done");
       setTimeout(() => setStatus("idle"), 2000);
     } catch {
