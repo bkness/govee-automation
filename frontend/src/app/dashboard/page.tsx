@@ -31,32 +31,10 @@ interface Scene {
   apply: () => { cmds: object[]; state: Partial<DeviceState> };
 }
 
-// ─── State persistence ────────────────────────────────────────────────────────
-
-const STORE_KEY = "govee-hud-states";
-
-function loadStored(): Record<string, Partial<DeviceState>> {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}"); }
-  catch { return {}; }
-}
-
-function persistDevice(deviceId: string, state: DeviceState) {
-  if (typeof window === "undefined") return;
-  try {
-    const all = loadStored();
-    all[deviceId] = state;
-    localStorage.setItem(STORE_KEY, JSON.stringify(all));
-  } catch {}
-}
+import { loadStored, persistDevice, persistMany } from "../lib/device-store";
 
 function persistScene(devices: GoveeDevice[], partial: Partial<DeviceState>) {
-  if (typeof window === "undefined") return;
-  try {
-    const all = loadStored();
-    for (const d of devices) all[d.device] = { ...(all[d.device] ?? {}), ...partial };
-    localStorage.setItem(STORE_KEY, JSON.stringify(all));
-  } catch {}
+  persistMany(devices.map((d) => d.device), partial);
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────

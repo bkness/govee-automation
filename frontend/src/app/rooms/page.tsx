@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { roomIsOn, persistMany } from "../lib/device-store";
 
 interface GoveeDevice {
   device: string;
@@ -90,7 +91,8 @@ function RoomCard({
   devices: GoveeDevice[];
 }) {
   const meta = ROOM_META[name] ?? ROOM_META["Other"];
-  const [roomOn, setRoomOn] = useState(false);
+  const deviceIds = devices.map((d) => d.device);
+  const [roomOn, setRoomOn] = useState(() => roomIsOn(deviceIds));
   const [pending, setPending] = useState(false);
 
   const toggle = useCallback(async () => {
@@ -103,10 +105,11 @@ function RoomCard({
           .filter((d) => d.controllable)
           .map((d) => sendCommand(d.device, d.model, { name: "turn", value: next ? "on" : "off" }))
       );
+      persistMany(deviceIds, { on: next });
     } finally {
       setPending(false);
     }
-  }, [roomOn, devices]);
+  }, [roomOn, devices, deviceIds]);
 
   const controllable = devices.filter((d) => d.controllable).length;
 
