@@ -86,14 +86,23 @@ function SkeletonCard() {
 function RoomCard({
   name,
   devices,
+  realStates,
 }: {
   name: string;
   devices: GoveeDevice[];
+  realStates: Record<string, { on?: boolean }>;
 }) {
   const meta = ROOM_META[name] ?? ROOM_META["Other"];
   const deviceIds = devices.map((d) => d.device);
   const [roomOn, setRoomOn] = useState(() => roomIsOn(deviceIds));
   const [pending, setPending] = useState(false);
+
+  // When real hardware states arrive, override the localStorage guess
+  useEffect(() => {
+    if (Object.keys(realStates).length === 0) return;
+    const anyOn = deviceIds.some((id) => realStates[id]?.on === true);
+    setRoomOn(anyOn);
+  }, [realStates, deviceIds]);
 
   const toggle = useCallback(async () => {
     const next = !roomOn;
@@ -285,17 +294,29 @@ function RoomCard({
 
 export default function RoomsPage() {
   const [devices, setDevices] = useState<GoveeDevice[]>([]);
+  const [realStates, setRealStates] = useState<Record<string, { on?: boolean }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    fetch(`${API}/lights/`, { headers: HEADERS })
-      .then((r) => { if (!r.ok) throw new Error(`API ${r.status}`); return r.json(); })
-      .then((j) => setDevices(j.data?.devices ?? []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    try {
+      const r = await fetch(`${API}/lights/`, { headers: HEADERS });
+      if (!r.ok) throw new Error(`API ${r.status}`);
+      const j = await r.json();
+      setDevices(j.data?.devices ?? []);
+      setLoading(false);
+
+      // Fetch real states in background — RoomCard useEffect picks them up
+      fetch(`${API}/lights/states`, { headers: HEADERS })
+        .then((sr) => sr.ok ? sr.json() : null)
+        .then((sj) => { if (sj?.states) setRealStates(sj.states); })
+        .catch(() => {});
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -394,7 +415,7 @@ export default function RoomsPage() {
         {loading
           ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
           : rooms.map((room) => (
-              <RoomCard key={room} name={room} devices={grouped[room]} />
+              <RoomCard key={room} name={room} devices={grouped[room]} realStates={realStates} />
             ))}
       </div>
 

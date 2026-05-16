@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI):
 
     app.state.start_time = time.time()
     app.state.device_count = 0
+    app.state.devices = []
 
     # Semaphore: max 1 concurrent Govee cloud write to respect rate limits
     app.state.govee_sem = asyncio.Semaphore(1)
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
             log.warning("Govee API returned status=%d on startup", res.status_code)
         else:
             devices = res.json().get("data", {}).get("devices", [])
+            app.state.devices = devices  # cache so /lights/states skips a redundant call
             app.state.device_count = len(devices)
             log.info("Govee API reachable — %d device(s) registered", app.state.device_count)
     except httpx.ConnectError:

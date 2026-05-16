@@ -33,8 +33,17 @@ interface Scene {
 
 import { loadStored, persistDevice, persistMany } from "../lib/device-store";
 
+type RealStates = Record<string, Partial<DeviceState>>;
+
 function persistScene(devices: GoveeDevice[], partial: Partial<DeviceState>) {
   persistMany(devices.map((d) => d.device), partial);
+}
+
+async function fetchRealStates(headers: Record<string, string>): Promise<RealStates> {
+  const res = await fetch(`${API}/lights/states`, { headers });
+  if (!res.ok) return {};
+  const json = await res.json();
+  return json.states ?? {};
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -215,7 +224,7 @@ function Toggle({ on, disabled, onChange }: { on: boolean; disabled?: boolean; o
 
 // ─── Device Card ──────────────────────────────────────────────────────────────
 
-function DeviceCard({ device }: { device: GoveeDevice }) {
+function DeviceCard({ device, realState }: { device: GoveeDevice; realState?: Partial<DeviceState> }) {
   const [state, setState] = useState<DeviceState>(() => {
     const stored = loadStored()[device.device];
     return {
@@ -231,6 +240,16 @@ function DeviceCard({ device }: { device: GoveeDevice }) {
   const brightnessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const colorTemTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const colorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Merge real hardware state when it arrives from the API
+  useEffect(() => {
+    if (!realState || Object.keys(realState).length === 0) return;
+    setState((s) => {
+      const next = { ...s, ...realState };
+      persistDevice(device.device, next);
+      return next;
+    });
+  }, [realState, device.device]);
 
   const supports = useCallback((cmd: string) => device.supportCmds.includes(cmd), [device]);
 
@@ -505,7 +524,7 @@ function DeviceCard({ device }: { device: GoveeDevice }) {
 
 // ─── Room Section ─────────────────────────────────────────────────────────────
 
-function RoomSection({ name, devices }: { name: string; devices: GoveeDevice[] }) {
+function RoomSection({ name, devices, realStates }: { name: string; devices: GoveeDevice[]; realStates: RealStates }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -551,7 +570,7 @@ function RoomSection({ name, devices }: { name: string; devices: GoveeDevice[] }
             gap: 12,
           }}
         >
-          {devices.map((d) => <DeviceCard key={d.device} device={d} />)}
+          {devices.map((d) => <DeviceCard key={d.device} device={d} realState={realStates[d.device]} />)}
         </div>
       )}
     </div>
@@ -734,20 +753,42 @@ function MasterBar({ devices, onRefresh, refreshing }: { devices: GoveeDevice[];
 
 export default function GoveeHud() {
   const [devices, setDevices] = useState<GoveeDevice[]>([]);
+  const [realStates, setRealStates] = useState<RealStates>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback((isRefresh = false) => {
+  const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
 
-    fetch(`${API}/lights/`, { headers: HEADERS })
-      .then((r) => { if (!r.ok) throw new Error(`API ${r.status}`); return r.json(); })
-      .then((json) => setDevices(json.data?.devices ?? []))
-      .catch((err) => setError(err.message))
-      .finally(() => { setLoading(false); setRefreshing(false); });
+    try {
+      const r = await fetch(`${API}/lights/`, { headers: HEADERS });
+      if (!r.ok) throw new Error(`API ${r.status}`);
+      const json = await r.json();
+      const devs: GoveeDevice[] = json.data?.devices ?? [];
+      setDevices(devs);
+      setLoading(false);
+      setRefreshing(false);
+
+      // Fetch real hardware states in background — cards update when this resolves
+      fetchRealStates(HEADERS)
+        .then((states) => {
+          setRealStates(states);
+          // Seed localStorage so rooms page also benefits
+          const all = loadStored();
+          for (const [id, s] of Object.entries(states)) {
+            all[id] = { ...(all[id] ?? {}), ...s };
+          }
+          try { localStorage.setItem("govee-hud-states", JSON.stringify(all)); } catch {}
+        })
+        .catch(() => {/* states are best-effort */});
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -813,7 +854,7 @@ export default function GoveeHud() {
       <MasterBar devices={devices} onRefresh={() => load(true)} refreshing={refreshing} />
       <SceneBar devices={devices} />
       {roomsInOrder.map((room) => (
-        <RoomSection key={room} name={room} devices={grouped[room]} />
+        <RoomSection key={room} name={room} devices={grouped[room]} realStates={realStates} />
       ))}
     </div>
   );
