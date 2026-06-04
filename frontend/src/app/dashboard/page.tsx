@@ -50,7 +50,7 @@ async function fetchRealStates(headers: Record<string, string>): Promise<RealSta
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_GOVEE_API_URL ?? "http://localhost:8000";
 const HEADERS = {
   "x-api-key": process.env.NEXT_PUBLIC_GOVEE_SERVER_KEY ?? "",
   "Content-Type": "application/json",

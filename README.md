@@ -56,6 +56,7 @@ GOVEE_SERVER_KEY=a_secret_key_you_choose
 
 ```env
 NEXT_PUBLIC_GOVEE_SERVER_KEY=same_secret_key_as_above
+NEXT_PUBLIC_GOVEE_API_URL=http://localhost:8000   # set to http://devforge.local:8000 for mobile
 ```
 
 Get your Govee API key at [developer.govee.com](https://developer.govee.com).
